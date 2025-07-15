@@ -1,0 +1,939 @@
+#!/usr/bin/env python3
+import os
+import json
+import subprocess
+import logging
+import re
+from flask import Flask, request, jsonify
+from functools import wraps
+import hashlib
+import hmac
+import time
+
+app = Flask(__name__)
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+# PufferPanel configuration
+USER_CONTEXTS_FILE = 'user_contexts.json'
+PUFFERPANEL_SERVER_ROOT = "/var/lib/pufferpanel/servers"
+
+# Server configurations
+SERVERS = {
+    "7eaa7ab6": {
+        "port": 25576,
+        "password": "randompass123"
+    },
+    "b46f4016": {
+        "port": 25581,
+        "password": "mQV8H0eNyjTh8Kn0"
+    },
+    "e6a4f515": {
+        "port": 25580,
+        "password": "BZXltsTJB56tB1Gg"
+    }
+}
+
+# Security configuration
+SLACK_SIGNING_SECRET = os.environ.get('SLACK_SIGNING_SECRET')
+API_TOKEN = os.environ.get('API_TOKEN', 'your-secure-api-token')
+
+# Configuration system - can be modified from Slack
+CONFIG = {
+    'enable_aliases': True,
+    'enable_luckperms_shortcuts': True,
+    'enable_essentials_shortcuts': True,
+    'default_group': 'default',
+    'admin_users': ['doktorodd'],  # Add your Slack username here
+    'enable_dangerous_commands': False,
+    'auto_essentials_prefix': True,
+    'global_default_server': None,  # Global default server for all users
+    'enable_user_contexts': True    # Allow users to set their own default server
+}
+
+# Load user-specific contexts from a JSON file
+try:
+    with open(USER_CONTEXTS_FILE, 'r') as f:
+        USER_CONTEXTS = json.load(f)
+        logger.info("User contexts loaded successfully.")
+except FileNotFoundError:
+    USER_CONTEXTS = {}
+    logger.info("User context file not found, starting with empty contexts.")
+except json.JSONDecodeError:
+    USER_CONTEXTS = {}
+    logger.warning("Invalid JSON in user context file, starting with empty contexts.")
+
+# Save user-specific contexts to a JSON file
+
+def save_user_contexts():
+    with open(USER_CONTEXTS_FILE, 'w') as f:
+        json.dump(USER_CONTEXTS, f)
+        logger.info("User contexts saved successfully.")
+
+# Command aliases for easier usage
+COMMAND_ALIASES = {
+    # Player management shortcuts
+    'heal': 'essentials:heal {player}',
+    'feed': 'essentials:feed {player}',
+    'fly': 'essentials:fly {player}',
+    'god': 'essentials:god {player}',
+    'tp': 'essentials:tp {player1} {player2}',
+    'tphere': 'essentials:tphere {player}',
+    'spawn': 'essentials:spawn {player}',
+    'invsee': 'essentials:invsee {player}',
+    'speed': 'essentials:speed {speed} {player}',
+    'gm': 'essentials:gamemode {mode} {player}',
+    'gamemode': 'essentials:gamemode {mode} {player}',
+    
+    # Economy shortcuts
+    'bal': 'essentials:balance {player}',
+    'balance': 'essentials:balance {player}',
+    'pay': 'essentials:pay {player} {amount}',
+    'eco': 'essentials:eco {action} {player} {amount}',
+    
+    # Home/Warp shortcuts
+    'home': 'essentials:home {player} {home}',
+    'sethome': 'essentials:sethome {player} {home}',
+    'warp': 'essentials:warp {warp}',
+    'setwarp': 'essentials:setwarp {warp}',
+    'delwarp': 'essentials:delwarp {warp}',
+    
+    # LuckPerms shortcuts
+    'addperm': 'lp user {player} permission set {permission} true',
+    'removeperm': 'lp user {player} permission unset {permission}',
+    'addgroup': 'lp user {player} parent add {group}',
+    'removegroup': 'lp user {player} parent remove {group}',
+    'userinfo': 'lp user {player} info',
+    'groupinfo': 'lp group {group} info',
+    'listgroups': 'lp listgroups',
+    'groupperm': 'lp group {group} permission set {permission} true',
+    
+    # Quick admin commands
+    'op': 'op {player}',
+    'deop': 'deop {player}',
+    'whitelist': 'whitelist {action} {player}',
+    'pardon': 'pardon {player}',
+    'tempban': 'tempban {player} {duration} {reason}',
+    'mute': 'essentials:mute {player} {duration} {reason}',
+    'unmute': 'essentials:unmute {player}',
+    'jail': 'essentials:jail {player} {jail} {duration}',
+    'unjail': 'essentials:unjail {player}',
+    
+    # Server management
+    'restart': 'restart',
+    'reload': 'reload',
+    'save': 'save-all',
+    'tps': 'tps',
+    'lag': 'lag',
+    'gc': 'gc',
+    'memory': 'memory',
+    
+    # World management
+    'day': 'time set day',
+    'night': 'time set night',
+    'sun': 'weather clear',
+    'rain': 'weather rain',
+    'storm': 'weather thunder',
+    
+    # Quick LuckPerms shortcuts
+    'fly_on': 'lp user {player} permission set essentials.fly true',
+    'fly_off': 'lp user {player} permission unset essentials.fly',
+    'build_on': 'lp user {player} permission set worldedit.* true',
+    'build_off': 'lp user {player} permission unset worldedit.*',
+    'admin_add': 'lp user {player} parent add admin',
+    'admin_remove': 'lp user {player} parent remove admin',
+    'mod_add': 'lp user {player} parent add moderator',
+    'mod_remove': 'lp user {player} parent remove moderator',
+    'vip_add': 'lp user {player} parent add vip',
+    'vip_remove': 'lp user {player} parent remove vip',
+    
+    # Essentials shortcuts
+    'heal_all': 'essentials:heal *',
+    'feed_all': 'essentials:feed *',
+    'clear_inv': 'essentials:clear {player}',
+    'repair': 'essentials:repair {player}',
+    'kit': 'essentials:kit {kit} {player}',
+    'give': 'essentials:give {player} {item} {amount}',
+    'skull': 'essentials:skull {player}',
+    'back': 'essentials:back {player}',
+    'top': 'essentials:top {player}',
+    'vanish': 'essentials:vanish {player}',
+    'freeze': 'essentials:freeze {player}',
+    'nick': 'essentials:nick {player} {nickname}',
+    'seen': 'essentials:seen {player}',
+    'whois': 'essentials:whois {player}',
+    'afk': 'essentials:afk {player}',
+    'msg': 'essentials:msg {player} {message}',
+    'broadcast': 'essentials:broadcast {message}',
+    'baltop': 'essentials:baltop',
+    'worth': 'essentials:worth {item}',
+    'sell': 'essentials:sell {item} {amount}',
+    'buy': 'essentials:buy {item} {amount}'
+}
+
+def clean_output_text(text):
+    """Clean ANSI color codes and other formatting from text"""
+    if not text:
+        return text
+    
+    # Remove ANSI color codes
+    ansi_escape = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+    text = ansi_escape.sub('', text)
+    
+    # Remove ANSI color codes in bracket format
+    bracket_escape = re.compile(r"\[[\d;]*m")
+    text = bracket_escape.sub('', text)
+    
+    # Remove Minecraft formatting codes
+    minecraft_escape = re.compile(r'§[0-9a-fA-F]')
+    text = minecraft_escape.sub('', text)
+    
+    return text.strip()
+
+def get_server_display_name(server_id):
+    """Get server display name"""
+    display_name = ""
+    
+    # Try to get MOTD from PufferPanel JSON first
+    json_file = os.path.join(PUFFERPANEL_SERVER_ROOT, f"{server_id}.json")
+    if os.path.exists(json_file):
+        try:
+            with open(json_file, 'r') as f:
+                data = json.load(f)
+                motd = data.get('data', {}).get('motd', {}).get('value', '')
+                if motd:
+                    display_name = clean_output_text(motd)
+                    display_name = display_name.strip('"').replace('\\"', '"').strip()
+                    display_name = display_name[:40]
+                
+                if not display_name:
+                    display_name = data.get('display', '').strip()
+        except (json.JSONDecodeError, IOError) as e:
+            logger.warning(f"Error reading PufferPanel JSON for {server_id}: {e}")
+    
+    # If no name, try server.properties
+    if not display_name:
+        properties_file = os.path.join(PUFFERPANEL_SERVER_ROOT, server_id, "server.properties")
+        if os.path.exists(properties_file):
+            try:
+                with open(properties_file, 'r') as f:
+                    for line in f:
+                        if line.startswith('motd='):
+                            motd = line.split('=', 1)[1].strip()
+                            display_name = clean_output_text(motd).strip()
+                            display_name = display_name[:40]
+                            break
+            except IOError as e:
+                logger.warning(f"Error reading server.properties for {server_id}: {e}")
+    
+    # If still no name, use server ID
+    if not display_name:
+        display_name = server_id
+    
+    return display_name
+
+def get_server_info(server_id):
+    """Get complete server information including display name"""
+    if server_id not in SERVERS:
+        return None
+    
+    server_config = SERVERS[server_id].copy()
+    server_config['id'] = server_id
+    server_config['name'] = get_server_display_name(server_id)
+    
+    return server_config
+
+def is_admin_user(user_name):
+    """Check if user is an admin"""
+    return user_name in CONFIG.get('admin_users', [])
+
+def get_user_default_server(user_name):
+    """Get the default server for a user"""
+    if not CONFIG.get('enable_user_contexts', True):
+        return CONFIG.get('global_default_server')
+    
+    # Check user-specific context first
+    if user_name in USER_CONTEXTS:
+        return USER_CONTEXTS[user_name]
+    
+    # Fall back to global default
+    return CONFIG.get('global_default_server')
+
+def set_user_default_server(user_name, server_id):
+    """Set the default server for a user"""
+    if server_id in SERVERS:
+        USER_CONTEXTS[user_name] = server_id
+        save_user_contexts()
+        return True
+    return False
+
+def execute_context_command(command, user_name):
+    """Execute context management commands"""
+    parts = command.split(' ', 1)
+    action = parts[0].lower()
+    
+    if action == 'set':
+        if len(parts) < 2:
+            return "❌ Usage: context set <server_id>"
+        
+        server_id = parts[1]
+        if set_user_default_server(user_name, server_id):
+            server_info = get_server_info(server_id)
+            server_name = server_info['name'] if server_info else server_id
+            return f"✅ Default server set to **{server_name}** ({server_id})"
+        else:
+            return f"❌ Unknown server: {server_id}"
+    
+    elif action == 'get' or action == 'show':
+        default_server = get_user_default_server(user_name)
+        if default_server:
+            server_info = get_server_info(default_server)
+            server_name = server_info['name'] if server_info else default_server
+            return f"📋 Your default server: **{server_name}** ({default_server})"
+        else:
+            return "📋 No default server set"
+    
+    elif action == 'clear':
+        if user_name in USER_CONTEXTS:
+            del USER_CONTEXTS[user_name]
+            save_user_contexts()
+            return "✅ Default server cleared"
+        else:
+            return "📋 No default server was set"
+    
+    elif action == 'list':
+        server_list = "📋 **Available Servers:**\n"
+        for server_id in SERVERS.keys():
+            server_info = get_server_info(server_id)
+            if server_info:
+                server_list += f"• `{server_id}`: {server_info['name']}\n"
+        return server_list
+    
+    else:
+        return "❌ Invalid context command. Use: set, get, clear, or list"
+
+def format_command_template(template, args):
+    """Format command template with provided arguments"""
+    placeholders = {
+        'player': args[0] if len(args) > 0 else '',
+        'player1': args[0] if len(args) > 0 else '',
+        'player2': args[1] if len(args) > 1 else '',
+        'permission': args[1] if len(args) > 1 else args[0] if len(args) > 0 else '',
+        'group': args[1] if len(args) > 1 else args[0] if len(args) > 0 else CONFIG.get('default_group', 'default'),
+        'amount': args[1] if len(args) > 1 else '1000',
+        'home': args[1] if len(args) > 1 else 'home',
+        'warp': args[0] if len(args) > 0 else '',
+        'action': args[0] if len(args) > 0 else '',
+        'reason': ' '.join(args[1:]) if len(args) > 1 else 'No reason provided',
+        'message': ' '.join(args) if args else '',
+        'duration': args[1] if len(args) > 1 else '1h',
+        'speed': args[0] if len(args) > 0 else '1',
+        'mode': args[0] if len(args) > 0 else 'survival',
+        'item': args[1] if len(args) > 1 else args[0] if len(args) > 0 else '',
+        'jail': args[1] if len(args) > 1 else 'jail',
+        'kit': args[0] if len(args) > 0 else 'starter',
+        'nickname': args[1] if len(args) > 1 else ''
+    }
+    
+    # Replace placeholders in template
+    formatted = template
+    for placeholder, value in placeholders.items():
+        formatted = formatted.replace(f'{{{placeholder}}}', str(value))
+    
+    return formatted
+
+def process_command_alias(command, user_name="unknown"):
+    """Process command aliases and shortcuts"""
+    if not CONFIG.get('enable_aliases', True):
+        return command
+    
+    # Split command into parts
+    parts = command.split()
+    if not parts:
+        return command
+    
+    base_command = parts[0].lower()
+    
+    # Check command aliases
+    if base_command in COMMAND_ALIASES:
+        template = COMMAND_ALIASES[base_command]
+        return format_command_template(template, parts[1:])
+    
+    # Auto-prefix essentials commands if enabled
+    if CONFIG.get('auto_essentials_prefix', True) and not base_command.startswith(('essentials:', 'lp', 'co')):
+        essentials_commands = ['heal', 'feed', 'fly', 'tp', 'spawn', 'home', 'warp', 'balance', 'pay']
+        if base_command in essentials_commands:
+            return f"essentials:{command}"
+    
+    return command
+
+def execute_config_command(command, user_name):
+    """Execute configuration commands"""
+    if not is_admin_user(user_name):
+        return "❌ Only admin users can modify configuration"
+    
+    parts = command.split(' ', 1)
+    if len(parts) < 2:
+        # Show current configuration
+        config_text = "📋 **Current Configuration**\n"
+        for key, value in CONFIG.items():
+            config_text += f"• {key}: {value}\n"
+        
+        # Show user contexts
+        if USER_CONTEXTS:
+            config_text += "\n📋 **User Contexts**\n"
+            for user, server_id in USER_CONTEXTS.items():
+                server_info = get_server_info(server_id)
+                server_name = server_info['name'] if server_info else server_id
+                config_text += f"• {user}: {server_name} ({server_id})\n"
+        
+        return config_text
+    
+    action = parts[0].lower()
+    
+    if action == 'set':
+        set_parts = parts[1].split(' ', 1)
+        if len(set_parts) < 2:
+            return "❌ Usage: config set <key> <value>"
+        
+        key, value = set_parts
+        if key in CONFIG:
+            # Convert string values to appropriate types
+            if isinstance(CONFIG[key], bool):
+                CONFIG[key] = value.lower() in ['true', '1', 'yes', 'on']
+            elif isinstance(CONFIG[key], list):
+                CONFIG[key] = value.split(',')
+            else:
+                CONFIG[key] = value
+            return f"✅ Configuration '{key}' set to {CONFIG[key]}"
+        else:
+            return f"❌ Unknown configuration key: {key}"
+    
+    elif action == 'get':
+        key = parts[1]
+        if key in CONFIG:
+            return f"📋 {key}: {CONFIG[key]}"
+        else:
+            return f"❌ Unknown configuration key: {key}"
+    
+    elif action == 'reset':
+        CONFIG.update({
+            'enable_aliases': True,
+            'enable_luckperms_shortcuts': True,
+            'enable_essentials_shortcuts': True,
+            'default_group': 'default',
+            'admin_users': ['doktorodd'],
+            'enable_dangerous_commands': False,
+            'auto_essentials_prefix': True,
+            'global_default_server': None,
+            'enable_user_contexts': True
+        })
+        return "✅ Configuration reset to defaults"
+    
+    return "❌ Invalid configuration command. Use: set, get, or reset"
+
+def convert_to_essentials_command(command, source="Web Service"):
+    """Convert vanilla commands to EssentialsX equivalents with custom formatting"""
+    command = command.strip()
+    
+    # Handle 'say' commands - convert to broadcast with custom formatting
+    if command.startswith('say '):
+        message = command[4:]
+        return f"broadcast §6[{source}] §f{message}"
+    
+    # Handle 'tell' commands - convert to essentials msg
+    elif command.startswith('tell ') or command.startswith('msg '):
+        parts = command.split(' ', 2)
+        if len(parts) >= 3:
+            player = parts[1]
+            message = parts[2]
+            return f"essentials:msg {player} §6[{source}] §f{message}"
+    
+    # Handle 'kick' commands - add custom reason formatting
+    elif command.startswith('kick '):
+        parts = command.split(' ', 2)
+        if len(parts) >= 2:
+            player = parts[1]
+            reason = parts[2] if len(parts) > 2 else "Kicked by automated system"
+            return f"essentials:kick {player} §c{reason} §7- {source}"
+    
+    # Handle 'ban' commands - add custom reason formatting
+    elif command.startswith('ban '):
+        parts = command.split(' ', 2)
+        if len(parts) >= 2:
+            player = parts[1]
+            reason = parts[2] if len(parts) > 2 else "Banned by automated system"
+            return f"essentials:ban {player} §c{reason} §7- {source}"
+    
+    # Handle 'tempban' commands
+    elif command.startswith('tempban '):
+        parts = command.split(' ', 3)
+        if len(parts) >= 3:
+            player = parts[1]
+            duration = parts[2]
+            reason = parts[3] if len(parts) > 3 else "Temporarily banned by automated system"
+            return f"essentials:tempban {player} {duration} §c{reason} §7- {source}"
+    
+    return command
+
+def get_command_description(command):
+    """Get a user-friendly description of what a command does"""
+    command_lower = command.lower().strip()
+    
+    if command_lower.startswith('broadcast '):
+        return f"Broadcasted message to all players"
+    elif command_lower.startswith('say '):
+        return f"Broadcasted message to all players"
+    elif command_lower.startswith('kick '):
+        player = command.split(' ', 1)[1] if len(command.split(' ', 1)) > 1 else 'player'
+        return f"Kicked player: {player}"
+    elif command_lower.startswith('ban '):
+        player = command.split(' ', 1)[1] if len(command.split(' ', 1)) > 1 else 'player'
+        return f"Banned player: {player}"
+    elif command_lower.startswith('pardon '):
+        player = command.split(' ', 1)[1] if len(command.split(' ', 1)) > 1 else 'player'
+        return f"Unbanned player: {player}"
+    elif command_lower.startswith('op '):
+        player = command.split(' ', 1)[1] if len(command.split(' ', 1)) > 1 else 'player'
+        return f"Gave operator status to: {player}"
+    elif command_lower.startswith('deop '):
+        player = command.split(' ', 1)[1] if len(command.split(' ', 1)) > 1 else 'player'
+        return f"Removed operator status from: {player}"
+    elif command_lower.startswith('tp '):
+        return f"Teleported players"
+    elif command_lower.startswith('give '):
+        return f"Gave items to player"
+    elif command_lower.startswith('gamemode '):
+        return f"Changed player gamemode"
+    elif command_lower.startswith('time set '):
+        time_val = command.split(' ', 2)[2] if len(command.split(' ', 2)) > 2 else 'time'
+        return f"Set time to: {time_val}"
+    elif command_lower.startswith('weather '):
+        weather = command.split(' ', 1)[1] if len(command.split(' ', 1)) > 1 else 'weather'
+        return f"Set weather to: {weather}"
+    
+    simple_commands = {
+        'stop': 'Server stop initiated',
+        'save-all': 'World saved',
+        'save-on': 'Auto-save enabled',
+        'save-off': 'Auto-save disabled',
+        'reload': 'Server reloaded',
+        'whitelist reload': 'Whitelist reloaded',
+        'whitelist on': 'Whitelist enabled',
+        'whitelist off': 'Whitelist disabled'
+    }
+    
+    return simple_commands.get(command_lower, f"Command executed: {command}")
+
+def verify_slack_signature(f):
+    """Verify that the request came from Slack"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if not SLACK_SIGNING_SECRET:
+            logger.warning("SLACK_SIGNING_SECRET not set, skipping verification")
+            return f(*args, **kwargs)
+            
+        timestamp = request.headers.get('X-Slack-Request-Timestamp')
+        signature = request.headers.get('X-Slack-Signature')
+        
+        if not timestamp or not signature:
+            return jsonify({'error': 'Missing Slack headers'}), 401
+            
+        # Check if request is too old (replay attack protection)
+        if abs(time.time() - int(timestamp)) > 60 * 5:  # 5 minutes
+            return jsonify({'error': 'Request too old'}), 401
+            
+        # Verify signature
+        body = request.get_data()
+        basestring = f'v0:{timestamp}:{body.decode()}'
+        expected_signature = 'v0=' + hmac.new(
+            SLACK_SIGNING_SECRET.encode(),
+            basestring.encode(),
+            hashlib.sha256
+        ).hexdigest()
+        
+        if not hmac.compare_digest(expected_signature, signature):
+            return jsonify({'error': 'Invalid signature'}), 401
+            
+        return f(*args, **kwargs)
+    return decorated_function
+
+def verify_api_token(f):
+    """Verify API token for non-Slack requests"""
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        token = request.headers.get('Authorization')
+        if not token or token != f'Bearer {API_TOKEN}':
+            return jsonify({'error': 'Invalid API token'}), 401
+        return f(*args, **kwargs)
+    return decorated_function
+
+def execute_rcon_command(server_id, command, source="Web Service"):
+    """Execute an RCON command on a specific server"""
+    server_info = get_server_info(server_id)
+    if not server_info:
+        return {'error': f'Server {server_id} not found'}
+    
+    # Check for dangerous commands
+    dangerous_commands = ['stop', 'restart', 'ban', 'pardon', 'op', 'deop', 'whitelist']
+    if not CONFIG.get('enable_dangerous_commands', False):
+        for dangerous in dangerous_commands:
+            if command.lower().startswith(dangerous):
+                return {'error': f'Dangerous command "{dangerous}" is disabled. Enable with config set enable_dangerous_commands true'}
+    
+    # Process aliases and shortcuts
+    original_command = command
+    processed_command = process_command_alias(command, source)
+    
+    # Convert command to EssentialsX equivalent if needed
+    converted_command = convert_to_essentials_command(processed_command, source)
+    
+    # Log the conversion if it happened
+    if converted_command != original_command:
+        logger.info(f"Converted command '{original_command}' to '{converted_command}'")
+    
+    try:
+        # Use mcrcon to execute the command
+        cmd = [
+            'mcrcon',
+            '-H', 'localhost',
+            '-P', str(server_info['port']),
+            '-p', server_info['password'],
+            converted_command
+        ]
+        
+        result = subprocess.run(
+            cmd,
+            capture_output=True,
+            text=True,
+            timeout=10
+        )
+        
+        if result.returncode == 0:
+            # Clean the output of ANSI codes and formatting
+            clean_output = clean_output_text(result.stdout)
+            
+            # If output is empty, provide a helpful message
+            if not clean_output:
+                clean_output = get_command_description(original_command)
+            
+            return {
+                'success': True,
+                'server': server_info['name'],
+                'server_id': server_id,
+                'command': original_command,
+                'processed_command': processed_command,
+                'converted_command': converted_command,
+                'output': clean_output
+            }
+        else:
+            # Clean the error output too
+            clean_error = clean_output_text(result.stderr)
+            return {
+                'success': False,
+                'server': server_info['name'],
+                'server_id': server_id,
+                'command': original_command,
+                'processed_command': processed_command,
+                'converted_command': converted_command,
+                'error': clean_error
+            }
+            
+    except subprocess.TimeoutExpired:
+        return {
+            'success': False,
+            'server': server_info['name'],
+            'server_id': server_id,
+            'command': original_command,
+            'processed_command': processed_command,
+            'converted_command': converted_command,
+            'error': 'Command timed out'
+        }
+    except Exception as e:
+        return {
+            'success': False,
+            'server': server_info['name'],
+            'server_id': server_id,
+            'command': original_command,
+            'processed_command': processed_command,
+            'converted_command': converted_command,
+            'error': str(e)
+        }
+
+@app.route('/health', methods=['GET'])
+def health_check():
+    """Health check endpoint"""
+    return jsonify({'status': 'healthy', 'timestamp': time.time()})
+
+@app.route('/servers', methods=['GET'])
+@verify_api_token
+def list_servers():
+    """List available servers with their display names"""
+    server_list = []
+    for server_id in SERVERS.keys():
+        server_info = get_server_info(server_id)
+        if server_info:
+            server_list.append({
+                'id': server_id,
+                'name': server_info['name'],
+                'port': server_info['port']
+            })
+    return jsonify({'servers': server_list})
+
+@app.route('/rcon', methods=['POST'])
+@verify_api_token
+def execute_rcon():
+    """Execute RCON command via API"""
+    data = request.get_json()
+    
+    if not data or 'server' not in data or 'command' not in data:
+        return jsonify({'error': 'Missing server or command'}), 400
+    
+    server_id = data['server']
+    command = data['command']
+    source = data.get('source', 'API')
+    
+    result = execute_rcon_command(server_id, command, source)
+    return jsonify(result)
+
+@app.route('/slack/rcon', methods=['POST'])
+@verify_slack_signature
+def slack_rcon():
+    """Handle Slack slash command for RCON"""
+    # Parse Slack form data
+    text = request.form.get('text', '').strip()
+    user_name = request.form.get('user_name', 'unknown')
+    
+    if not text:
+        server_list = []
+        for server_id in SERVERS.keys():
+            server_info = get_server_info(server_id)
+            if server_info:
+                server_list.append(f'• {server_id}: {server_info["name"]}')
+        
+        default_server = get_user_default_server(user_name)
+        default_text = ""
+        if default_server:
+            server_info = get_server_info(default_server)
+            server_name = server_info['name'] if server_info else default_server
+            default_text = f'\n\n**Your Default Server:** {server_name} ({default_server})'
+        
+        return jsonify({
+            'response_type': 'ephemeral',
+            'text': f'**Usage:**\n• `/rcon <server_id> <command>` - Execute command on specific server\n• `/rcon <command>` - Execute on your default server\n\n**Available servers:**\n' + '\n'.join(server_list) + default_text + '\n\n**Context Commands:**\n• `/rcon context set <server_id>` - Set default server\n• `/rcon context get` - Show current default\n• `/rcon context clear` - Clear default\n• `/rcon help` - Show command help'
+        })
+    
+    # Check for special commands first
+    if text.lower().startswith('context '):
+        context_command = text[8:]  # Remove 'context '
+        context_result = execute_context_command(context_command, user_name)
+        return jsonify({
+            'response_type': 'ephemeral',
+            'text': context_result
+        })
+    
+    # Parse command - could be "server_id command" or just "command"
+    parts = text.split(' ', 1)
+    
+    # Check if first part is a server ID
+    if parts[0] in SERVERS:
+        # Traditional format: /rcon <server_id> <command>
+        if len(parts) < 2:
+            return jsonify({
+                'response_type': 'ephemeral',
+                'text': 'Invalid format. Usage: /rcon <server_id> <command>'
+            })
+        server_id = parts[0]
+        command = parts[1]
+    else:
+        # New format: /rcon <command> (uses default server)
+        server_id = get_user_default_server(user_name)
+        command = text
+        
+        if not server_id:
+            return jsonify({
+                'response_type': 'ephemeral',
+                'text': '❌ No default server set. Use `/rcon context set <server_id>` to set one, or use `/rcon <server_id> <command>`'
+            })
+    
+    # Check for help command
+    if command.lower() == 'help':
+        help_text = "🎮 **Available Command Aliases**\n\n"
+        help_text += "**Player Management:**\n"
+        help_text += "• `heal <player>` - Heal player\n"
+        help_text += "• `feed <player>` - Feed player\n"
+        help_text += "• `fly <player>` - Toggle fly mode\n"
+        help_text += "• `tp <player1> <player2>` - Teleport players\n"
+        help_text += "• `spawn <player>` - Teleport to spawn\n"
+        help_text += "• `gm <mode> <player>` - Change gamemode\n\n"
+        help_text += "• `god <player>` - Toggle god mode\n"
+        help_text += "• `tphere <player>` - Teleport player to you\n"
+        help_text += "• `invsee <player>` - View player inventory\n"
+        help_text += "• `speed <speed> <player>` - Set player speed\n"
+        help_text += "• `gamemode <mode> <player>` - Change gamemode\n"
+        help_text += "**LuckPerms:**\n"
+        help_text += "• `addperm <player> <permission>` - Add permission\n"
+        help_text += "• `removeperm <player> <permission>` - Remove permission\n"
+        help_text += "• `addgroup <player> <group>` - Add to group\n"
+        help_text += "• `userinfo <player>` - Show user info\n"
+        help_text += "• `fly_on <player>` - Give fly permission\n"
+        help_text += "• `fly_off <player>` - Remove fly permission\n\n"
+        help_text += "• `removegroup <player> <group>` - Remove from group\n"
+        help_text += "• `groupinfo <group>` - Show group info\n"
+        help_text += "• `listgroups` - List all groups\n"
+        help_text += "• `groupperm <group> <permission>` - Add group permission\n"
+        help_text += "**Economy:**\n"
+        help_text += "• `bal <player>` - Check balance\n"
+        help_text += "• `pay <player> <amount>` - Pay player\n"
+        help_text += "• `baltop` - Show top balances\n\n"
+        help_text += "• `balance <player>` - Check balance\n"
+        help_text += "• `eco <action> <player> <amount>` - Economy admin\n"
+        help_text += "• `worth <item>` - Check item worth\n"
+        help_text += "• `sell <item> <amount>` - Sell items\n"
+        help_text += "• `buy <item> <amount>` - Buy items\n"
+        help_text += "**Quick Commands:**\n"
+        help_text += "• `day` - Set time to day\n"
+        help_text += "• `night` - Set time to night\n"
+        help_text += "• `sun` - Clear weather\n"
+        help_text += "• `rain` - Start rain\n"
+        help_text += "• `save` - Save world\n"
+        help_text += "• `broadcast <message>` - Send message to all players\n"
+        help_text += "• `storm` - Start thunderstorm\n"
+        help_text += "• `restart` - Restart server\n"
+        help_text += "• `reload` - Reload server\n"
+        help_text += "• `lag` - Show lag info\n"
+        help_text += "• `gc` - Garbage collection\n"
+        help_text += "• `memory` - Show memory usage\n"
+        help_text += "• `tps` - Show server performance\n\n"
+        help_text += "**Context Commands:**\n"
+        help_text += "• `context set <server_id>` - Set default server\n"
+        help_text += "• `context get` - Show current default\n"
+        help_text += "• `context clear` - Clear default\n\n"
+        help_text += "**Configuration (Admin only):**\n"
+        help_text += "• `config` - Show current config\n"
+        help_text += "• `config set <key> <value>` - Set config value\n"
+        help_text += "\\n**Home/Warp:**\\n"
+        help_text += "• `home <player> <home>` - Go to home\\n"
+        help_text += "• `sethome <player> <home>` - Set home\\n"
+        help_text += "• `warp <warp>` - Go to warp\\n"
+        help_text += "• `setwarp <warp>` - Set warp\\n"
+        help_text += "• `delwarp <warp>` - Delete warp\\n"
+        help_text += "\\n**Admin Tools:**\\n"
+        help_text += "• `op <player>` - Op player\\n"
+        help_text += "• `deop <player>` - Deop player\\n"
+        help_text += "• `whitelist <action> <player>` - Whitelist management\\n"
+        help_text += "• `pardon <player>` - Unban player\\n"
+        help_text += "• `tempban <player> <duration> <reason>` - Temporary ban\\n"
+        help_text += "• `mute <player> <duration> <reason>` - Mute player\\n"
+        help_text += "• `unmute <player>` - Unmute player\\n"
+        help_text += "• `jail <player> <jail> <duration>` - Jail player\\n"
+        help_text += "• `unjail <player>` - Unjail player\\n"
+        help_text += "\\n**Group Management:**\\n"
+        help_text += "• `admin_add <player>` - Add to admin group\\n"
+        help_text += "• `admin_remove <player>` - Remove from admin group\\n"
+        help_text += "• `mod_add <player>` - Add to moderator group\\n"
+        help_text += "• `mod_remove <player>` - Remove from moderator group\\n"
+        help_text += "• `vip_add <player>` - Add to VIP group\\n"
+        help_text += "• `vip_remove <player>` - Remove from VIP group\\n"
+        help_text += "\\n**More Utilities:**\\n"
+        help_text += "• `heal_all` - Heal all players\\n"
+        help_text += "• `feed_all` - Feed all players\\n"
+        help_text += "• `clear_inv <player>` - Clear inventory\\n"
+        help_text += "• `repair <player>` - Repair items\\n"
+        help_text += "• `kit <kit> <player>` - Give kit\\n"
+        help_text += "• `give <player> <item> <amount>` - Give items\\n"
+        help_text += "• `skull <player>` - Get player skull\\n"
+        help_text += "• `back <player>` - Return to last location\\n"
+        help_text += "• `top <player>` - Teleport to highest block\\n"
+        help_text += "• `vanish <player>` - Toggle vanish\\n"
+        help_text += "• `freeze <player>` - Freeze player\\n"
+        help_text += "• `nick <player> <nickname>` - Set nickname\\n"
+        help_text += "• `seen <player>` - Check last seen\\n"
+        help_text += "• `whois <player>` - Player info\\n"
+        help_text += "• `afk <player>` - Set AFK\\n"
+        help_text += "• `msg <player> <message>` - Private message\\n"
+        
+        return jsonify({
+            'response_type': 'ephemeral',
+            'text': help_text
+        })
+    
+    # Check for configuration commands
+    if command.lower().startswith('config'):
+        config_command = command[6:].strip() if len(command) > 6 else ''
+        config_result = execute_config_command(config_command, user_name)
+        return jsonify({
+            'response_type': 'ephemeral',
+            'text': config_result
+        })
+    
+    # Log the command execution
+    logger.info(f"User {user_name} executing RCON command: {command} on server {server_id}")
+    
+    # Execute the command with Slack as source
+    result = execute_rcon_command(server_id, command, f"Slack ({user_name})")
+    
+    if result.get('success'):
+        response_text = f"✅ **{result['server']}** ({result['server_id']})\n"
+        
+        # Show command transformations if they happened
+        if result.get('processed_command') != result.get('command'):
+            response_text += f"_Alias: `{result['command']}` → `{result['processed_command']}`_\n"
+        if result.get('converted_command') != result.get('processed_command'):
+            response_text += f"_Converted: `{result['processed_command']}` → `{result['converted_command']}`_\n"
+        
+        response_text += f"```\n{result['output']}\n```"
+    else:
+        response_text = f"❌ **{result.get('server', server_id)}** ({server_id})\nError: {result.get('error', 'Unknown error')}"
+    
+    return jsonify({
+        'response_type': 'in_channel',
+        'text': response_text
+    })
+
+@app.route('/slack/players', methods=['POST'])
+@verify_slack_signature
+def slack_players():
+    """Get player list from all servers"""
+    user_name = request.form.get('user_name', 'unknown')
+    logger.info(f"User {user_name} requesting player list")
+    
+    response_text = "🎮 **Server Status**\n\n"
+    
+    for server_id in SERVERS.keys():
+        result = execute_rcon_command(server_id, 'list', f"Slack ({user_name})")
+        server_info = get_server_info(server_id)
+        server_name = server_info['name'] if server_info else server_id
+        
+        if result.get('success'):
+            response_text += f"**{server_name}** ({server_id}): {result['output']}\n"
+        else:
+            response_text += f"**{server_name}** ({server_id}): ❌ {result.get('error', 'Error')}\n"
+    
+    return jsonify({
+        'response_type': 'in_channel',
+        'text': response_text
+    })
+
+@app.route('/slack/servers', methods=['POST'])
+@verify_slack_signature
+def slack_servers():
+    """List servers with IDs and names for Slack command"""
+    user_name = request.form.get('user_name', 'unknown')
+    logger.info(f"User {user_name} requesting server list")
+    
+    server_list = "👾 **Available Servers**\n\n"
+    for server_id in SERVERS.keys():
+        server_info = get_server_info(server_id)
+        if server_info:
+            server_list += f"**{server_info['name']}**\nID: `{server_id}`\nPort: {server_info['port']}\n\n"
+    
+    return jsonify({
+        'response_type': 'ephemeral',
+        'text': server_list
+    })
+
+if __name__ == '__main__':
+    app.run(host='0.0.0.0', port=5000, debug=False)

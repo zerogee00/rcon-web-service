@@ -1,0 +1,18 @@
+[Unit]
+Description=RCON Web Service
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/root/rcon-web-service
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=FLASK_ENV=production
+Environment=API_TOKEN=e0fb8b5ba296d6fc4c5b34fcab0eba8b7673e8ae12b48ddacad17d543d21dffd
+Environment=SLACK_SIGNING_SECRET=placeholder-for-slack-secret
+ExecStart=/usr/bin/python3 -m gunicorn --bind 0.0.0.0:5000 --workers 2 app:app
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target
