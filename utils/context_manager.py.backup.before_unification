@@ -59,19 +59,14 @@ def get_user_default_server(user_name):
     return None
 
 def set_user_default_server(user_name, server_id):
-    """Set user's default server (can be None to clear)"""
+    """Set user's default server"""
     if user_name not in USER_CONTEXTS:
         USER_CONTEXTS[user_name] = {}
     elif not isinstance(USER_CONTEXTS[user_name], dict):
         # Convert legacy format
         USER_CONTEXTS[user_name] = {}
     
-    if server_id is None:
-        # Clear default server
-        if 'default_server' in USER_CONTEXTS[user_name]:
-            del USER_CONTEXTS[user_name]['default_server']
-    else:
-        USER_CONTEXTS[user_name]['default_server'] = server_id
+    USER_CONTEXTS[user_name]['default_server'] = server_id
     save_user_contexts()
 
 def get_user_context(user_name):
