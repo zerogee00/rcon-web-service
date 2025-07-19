@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Test the improved notification format
-SLACK_WEBHOOK_URL="***REMOVED***"
+SLACK_WEBHOOK_URL="${SLACK_WEBHOOK_URL:-}"
 SLACK_ENABLED="true"
 
 # Test notification function with improved format

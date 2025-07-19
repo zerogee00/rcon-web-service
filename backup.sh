@@ -20,7 +20,7 @@ IONICE_CLASS="3"        # Idle I/O priority class
 
 # === SLACK CONFIGURATION ===
 # Set your Slack webhook URL here
-SLACK_WEBHOOK_URL="***REMOVED***"  # Add your webhook URL here
+SLACK_WEBHOOK_URL="${SLACK_WEBHOOK_URL:-}"  # Set via environment variable
 # Set to true to enable Slack notifications
 SLACK_ENABLED="true"
 

@@ -41,7 +41,7 @@ export NICE_LEVEL="15"
 export IONICE_CLASS="3"
 
 # Slack configuration (matching main script)
-export SLACK_WEBHOOK_URL="***REMOVED***"
+export SLACK_WEBHOOK_URL="${SLACK_WEBHOOK_URL:-}"
 export SLACK_ENABLED="true"
 
 # Create directories
