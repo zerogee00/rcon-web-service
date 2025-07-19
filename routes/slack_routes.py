@@ -59,7 +59,7 @@ def handle_servers_command(user_name):
     for server_id, config in SERVERS.items():
         server_info = get_server_info(server_id)
         status_indicator = "✅" if default_server == server_id else "⚪"
-        server_list += f"{status_indicator} **{server_info['name']}** (`{server_id}`) - {config['host']}:{config['port']}\n"
+        server_list += f"{status_indicator} **{server_info['name']}** (`{server_id}`) - localhost:{config['port']}\n"
     
     if default_server:
         server_info = get_server_info(default_server)
