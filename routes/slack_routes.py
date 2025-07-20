@@ -15,18 +15,18 @@ slack_bp = Blueprint('slack', __name__)
 
 def handle_help_command():
     """Handle help command with enhanced context information"""
-    help_text = """🎮 **Minecraft RCON Commands**
+    help_text = """🎮 *Minecraft RCON Commands*
 
-**Basic Usage:**
+*Basic Usage:*
 • `/mc <command>` - Run command on your default server
 • `/mc <server_id> <command>` - Run command on specific server  
 • `/mc servers` - List all available servers
 • `/mc help` - Show this help
 
-**Server Selection:**
+*Server Selection:*
 When you don't have a default server, I'll guide you through selecting one and remember it for future commands.
 
-**Popular Commands:**
+*Popular Commands:*
 • `list` - Show online players
 • `say <message>` - Broadcast message to server  
 • `tp <player1> <player2>` - Teleport player1 to player2
@@ -35,12 +35,12 @@ When you don't have a default server, I'll guide you through selecting one and r
 • `weather <weather>` - Set weather (clear, rain, thunder)
 • `seed` - Show world seed
 
-**Examples:**
+*Examples:*
 • List players: `/mc list`
 • Broadcast message: `/mc say Server restart in 5 minutes!`
 • Change time: `/mc time set day`
 
-**Context-Aware Features:**
+*Context-Aware Features:*
 • 🧠 I remember your preferred server across commands
 • ⏱️ Context expires after 5 minutes of inactivity
 • 🔄 I'll prompt you to choose again when needed"""
@@ -52,18 +52,18 @@ When you don't have a default server, I'll guide you through selecting one and r
 
 def handle_servers_command(user_name):
     """Handle servers list command with context awareness"""
-    server_list = "🎯 **Available Minecraft Servers:**\n\n"
+    server_list = "🎯 *Available Minecraft Servers:*\n\n"
     
     default_server = get_user_default_server(user_name)
     
     for server_id, config in SERVERS.items():
         server_info = get_server_info(server_id)
         status_indicator = "✅" if default_server == server_id else "⚪"
-        server_list += f"{status_indicator} **{server_info['name']}** (`{server_id}`) - localhost:{config['port']}\n"
+        server_list += f"{status_indicator} *{server_info['name']}* (`{server_id}`) - localhost:{config['port']}\n"
     
     if default_server:
         server_info = get_server_info(default_server)
-        server_list += f"\n💡 Your current default: **{server_info['name']}** (`{default_server}`)"
+        server_list += f"\n💡 Your current default: *{server_info['name']}* (`{default_server}`)"
     else:
         server_list += "\n💡 No default server set. Use any server ID with commands or I'll help you choose one."
     
@@ -81,20 +81,20 @@ def handle_config_command(user_name, text):
         default_server = get_user_default_server(user_name)
         context = get_user_context(user_name)
         
-        config_text = "⚙️ **Your Configuration:**\n\n"
+        config_text = "⚙️ *Your Configuration:*\n\n"
         
         if default_server:
             server_info = get_server_info(default_server)
-            config_text += f"🎯 **Default Server:** {server_info['name']} (`{default_server}`)\n"
+            config_text += f"🎯 *Default Server:* {server_info['name']} (`{default_server}`)\n"
         else:
-            config_text += "🎯 **Default Server:** Not set\n"
+            config_text += "🎯 *Default Server:* Not set\n"
         
         if context:
-            config_text += f"🧠 **Active Context:** {context['type']} (expires in a few minutes)\n"
+            config_text += f"🧠 *Active Context:* {context['type']} (expires in a few minutes)\n"
         else:
-            config_text += "🧠 **Active Context:** None\n"
+            config_text += "🧠 *Active Context:* None\n"
         
-        config_text += "\n**Commands:**\n"
+        config_text += "\n*Commands:*\n"
         config_text += "• `config clear` - Clear your default server\n"
         config_text += "• `config reset` - Reset all your settings\n"
         
@@ -191,9 +191,9 @@ def handle_slack_command():
         
         # Format response
         if processed_command.lower() in ['list', 'who']:
-            response_text = f"**👥 Players on {server_info['name']}:**\n```\n{result}\n```"
+            response_text = f"*👥 Players on {server_info['name']}:*\n```\n{result}\n```"
         else:
-            response_text = f"**🎮 {server_info['name']}** - Command: `{processed_command}`\n```\n{result}\n```"
+            response_text = f"*🎮 {server_info['name']}* - Command: `{processed_command}`\n```\n{result}\n```"
         
         return jsonify({
             'response_type': 'in_channel',
@@ -210,13 +210,13 @@ def handle_slack_command():
 def prompt_server_selection(user_name, command):
     """Prompt user to select a server and set context"""
     available_servers = list(SERVERS.keys())
-    server_list = "🎯 **Choose a server:**\n\n"
+    server_list = "🎯 *Choose a server:*\n\n"
     
     for i, server_id in enumerate(available_servers, 1):
         server_info = get_server_info(server_id)
-        server_list += f"{i}. **{server_info['name']}** (`{server_id}`)\n"
+        server_list += f"{i}. *{server_info['name']}* (`{server_id}`)\n"
     
-    server_list += "\n💡 **Next:** Reply with the **number** of your choice (e.g., `1`, `2`, etc.)"
+    server_list += "\n💡 *Next:* Reply with the *number* of your choice (e.g., `1`, `2`, etc.)"
     server_list += "\n🧠 I'll remember your choice for future commands!"
     
     # Set context for this selection
@@ -258,12 +258,12 @@ def handle_server_selection_response(user_name, text, context):
             server_info = get_server_info(selected_server_id)
             
             # Format response with confirmation
-            response_text = f"✅ **Server set to {server_info['name']}** (I'll remember this!)\n\n"
+            response_text = f"✅ *Server set to {server_info['name']}* (I'll remember this!)\n\n"
             
             if processed_command.lower() in ['list', 'who']:
-                response_text += f"**👥 Players on {server_info['name']}:**\n```\n{result}\n```"
+                response_text += f"*👥 Players on {server_info['name']}:*\n```\n{result}\n```"
             else:
-                response_text += f"**🎮 {server_info['name']}** - Command: `{processed_command}`\n```\n{result}\n```"
+                response_text += f"*🎮 {server_info['name']}* - Command: `{processed_command}`\n```\n{result}\n```"
             
             return jsonify({
                 'response_type': 'in_channel',
@@ -304,7 +304,7 @@ def handle_players_command():
         
         return jsonify({
             'response_type': 'in_channel',
-            'text': f"**👥 Players on {server_info['name']}:**\n```\n{result}\n```"
+            'text': f"*👥 Players on {server_info['name']}:*\n```\n{result}\n```"
         })
         
     except Exception as e:

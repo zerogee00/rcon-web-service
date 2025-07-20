@@ -15,11 +15,11 @@ logger = logging.getLogger(__name__)
 def handle_backup_list():
     """List all servers available for backup"""
     try:
-        server_list = "📋 **Servers Available for Backup**\n\n"
+        server_list = "📋 *Servers Available for Backup*\n\n"
         for server_id in SERVERS.keys():
             server_info = get_server_info(server_id)
             if server_info:
-                server_list += f"• **{server_info['name']}** (`{server_id}`)\n"
+                server_list += f"• *{server_info['name']}* (`{server_id}`)\n"
         
         return jsonify({
             'response_type': 'ephemeral',
@@ -58,7 +58,7 @@ def handle_incremental_backup(user_name, server_id=None):
             
             server_info = get_server_info(server_id)
             server_name = server_info['name'] if server_info else server_id
-            response_text = f"🚀 Starting incremental backup for **{server_name}** (`{server_id}`)...\n\nThis will run in the background. Check logs for completion status."
+            response_text = f"🚀 Starting incremental backup for *{server_name}* (`{server_id}`)...\n\nThis will run in the background. Check logs for completion status."
         else:
             # All servers incremental backup (default behavior)
             backup_script = os.path.join(os.path.dirname(__file__), '..', 'backup.sh')
@@ -118,7 +118,7 @@ def handle_full_backup(user_name, server_id=None):
             
             server_info = get_server_info(server_id)
             server_name = server_info['name'] if server_info else server_id
-            response_text = f"🚀 Starting full backup with cloud upload for **{server_name}** (`{server_id}`)...\n\nThis will run in the background and may take several minutes."
+            response_text = f"🚀 Starting full backup with cloud upload for *{server_name}* (`{server_id}`)...\n\nThis will run in the background and may take several minutes."
         else:
             # All servers full backup using interactive mode
             backup_script = os.path.join(os.path.dirname(__file__), '..', 'backup.sh')
@@ -207,14 +207,14 @@ def handle_backup_status():
                     backup_count = len([l for l in filtered_lines if '✅ Incremental backup completed' in l or '✅ Full backup' in l])
                     cleanup_count = len([l for l in filtered_lines if '✅' in l and 'cleanup complete' in l])
                     
-                    status_text = f"📊 **Recent Backup Activity**\n\n"
+                    status_text = f"📊 *Recent Backup Activity*\n\n"
                     
                     if backup_count > 0 or cleanup_count > 0:
-                        status_text += f"📈 **Summary:** {backup_count} backup operations, {cleanup_count} cleanup tasks completed\n\n"
+                        status_text += f"📈 *Summary:* {backup_count} backup operations, {cleanup_count} cleanup tasks completed\n\n"
                     
                     status_text += f"```\n{recent_activity}\n```"
                 else:
-                    status_text = "📊 **Recent Backup Activity:**\n\nNo recent backup activity found."
+                    status_text = "📊 *Recent Backup Activity:*\n\nNo recent backup activity found."
             else:
                 status_text = "📊 Unable to read backup log file."
         else:
@@ -275,48 +275,48 @@ def process_backup_command(user_name, command_text):
     args = command_text.split() if command_text else []
     
     if not args:
-        help_text = """🛠️ **Minecraft Backup System - Complete Guide**
+        help_text = """🛠️ *Minecraft Backup System - Complete Guide*
 
-**📋 Available Commands:**
+*📋 Available Commands:*
 • `/backup list` - List all servers available for backup
 • `/backup status` - Show recent backup activity and logs
 • `/backup cleanup` - Clean up old remote backups
 
-**📦 Backup Types:**
+*📦 Backup Types:*
 
-**⚡ Incremental Backup** (Fast, Local Only):
+*⚡ Incremental Backup* (Fast, Local Only):
 • `/backup incremental` - Backup all servers (quick sync)
 • `/backup incremental <server_id>` - Backup specific server
 • Perfect for daily automated backups
 • Uses rsync for speed, stores locally only
 
-**☁️ Full Backup** (Complete + Cloud Upload):
+*☁️ Full Backup* (Complete + Cloud Upload):
 • `/backup full` - Full backup of all servers with cloud upload
 • `/backup full <server_id>` - Full backup of specific server  
 • Creates zip files and uploads to Google Drive
 • Best for weekly/monthly archival backups
 
-**📊 Management:**
+*📊 Management:*
 • `/backup status` - View recent backup logs and activity
 • `/backup cleanup` - Remove old backups (keeps 5 most recent)
 
-**📖 Examples:**
+*📖 Examples:*
 • `/backup incremental 7eaa7ab6` - Quick backup of Cactus Truck server
 • `/backup full b46f4016` - Full backup of CactusTruckLanWorld
 • `/backup status` - Check if backups are running
 • `/backup list` - See all your servers
 
-**🎯 Backup Strategy:**
-• **Daily**: Use incremental for speed
-• **Weekly**: Use full for complete archives
-• **Monthly**: Run cleanup to manage storage
+*🎯 Backup Strategy:*
+• *Daily*: Use incremental for speed
+• *Weekly*: Use full for complete archives
+• *Monthly*: Run cleanup to manage storage
 
-**💾 Storage Locations:**
-• **Local**: `/var/lib/pufferpanel/servers/backup/`
-• **Cloud**: Google Drive (mc-backups folder)
-• **Retention**: 3 days local, 5 backups per server in cloud
+*💾 Storage Locations:*
+• *Local*: `/var/lib/pufferpanel/servers/backup/`
+• *Cloud*: Google Drive (mc-backups folder)
+• *Retention*: 3 days local, 5 backups per server in cloud
 
-**⏱️ Performance:**
+*⏱️ Performance:*
 • Incremental: Usually 30 seconds - 2 minutes
 • Full backup: 2-10 minutes depending on world size
 • All backups run in background (non-blocking)"""
