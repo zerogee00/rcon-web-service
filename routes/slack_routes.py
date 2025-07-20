@@ -331,3 +331,13 @@ def handle_servers_endpoint():
 def handle_mc_command():
     """Handle /mc slash command - redirect to main handler"""
     return handle_slack_command()
+
+@slack_bp.route('/slack/backup', methods=['POST'])
+def handle_backup_command():
+    """Handle /backup slash command - redirect to backup processor"""
+    from modules.backup_manager import process_backup_command
+    user_name = request.form.get('user_name', 'unknown')
+    text = request.form.get('text', '').strip()
+    
+    logger.info(f"Backup command from {user_name}: '{text}'")
+    return process_backup_command(user_name, text)
