@@ -326,8 +326,3 @@ def handle_servers_endpoint():
             'response_type': 'ephemeral',
             'text': f'❌ Error: {str(e)}'
         })
-
-@slack_bp.route('/slack/mc', methods=['POST'])
-def handle_mc_command():
-    """Handle /mc slash command - redirect to main handler"""
-    return handle_slack_command()
