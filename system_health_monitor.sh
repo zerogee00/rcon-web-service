@@ -111,7 +111,7 @@ check_memory_usage() {
 
 # === HEALTH SUMMARY ===
 generate_health_summary() {
-    local summary="📊 **Daily System Health Summary**"
+    local summary="📊 *Daily System Health Summary*"
     notify_slack "$summary" "info" "good" "📊 Daily Health Summary"
     log "📊 Daily health summary sent"
 }

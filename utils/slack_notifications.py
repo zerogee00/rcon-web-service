@@ -59,7 +59,7 @@ class SlackNotifier:
                     "fields": [
                         {
                             "title": "Minecraft Server Command",
-                            "value": f"**User:** {user}\n**Server:** {server_name}\n**Command:** `{command}`\n**Result:** {result}",
+                            "value": f"*User:* {user}\n*Server:* {server_name}\n*Command:* `{command}`\n*Result:* {result}",
                             "short": False
                         }
                     ],
@@ -89,11 +89,11 @@ class SlackNotifier:
         if player:
             preview_text += f" - {player}"
         
-        value_text = f"**User:** {user}\n**Server:** {server_name}\n**Action:** {action}"
+        value_text = f"*User:* {user}\n*Server:* {server_name}\n*Action:* {action}"
         if player:
-            value_text += f"\n**Player:** {player}"
+            value_text += f"\n*Player:* {player}"
         if details:
-            value_text += f"\n**Details:** {details}"
+            value_text += f"\n*Details:* {details}"
         
         payload = {
             "text": preview_text,
@@ -136,9 +136,9 @@ class SlackNotifier:
         color = status_colors.get(status.lower(), 'warning')
         emoji = status_emojis.get(status.lower(), '⚡')
         
-        value_text = f"**Server:** {server_name}\n**Status:** {status.upper()}"
+        value_text = f"*Server:* {server_name}\n*Status:* {status.upper()}"
         if user:
-            value_text += f"\n**Initiated by:** {user}"
+            value_text += f"\n*Initiated by:* {user}"
         
         payload = {
             "text": f"{emoji} Server {status}: {server_name}",

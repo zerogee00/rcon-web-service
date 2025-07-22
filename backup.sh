@@ -198,11 +198,11 @@ incremental_backup_server() {
     local size=$(du -sh "$dest" 2>/dev/null | cut -f1)
     echo " ✅ ($size)"
     log "✅ Incremental backup completed: $size"
-    notify_slack "✅ Incremental backup of **$display_name** (\`$server_id\`) completed successfully\n📦 **Size:** $size\n⏰ **Time:** $(date '+%H:%M:%S')" "success" "good" "✅ Backup completed: $display_name"
+    notify_slack "✅ Incremental backup of *$display_name* (\`$server_id\`) completed successfully\n📦 *Size:* $size\n⏰ *Time:* $(date '+%H:%M:%S')" "success" "good" "✅ Backup completed: $display_name"
   else
     echo " ❌ Failed"
     log "❌ Incremental backup failed for $server_id"
-    notify_slack "❌ Incremental backup of **$display_name** (\`$server_id\`) failed!\n⚠️ **Status:** Failed\n⏰ **Time:** $(date '+%H:%M:%S')" "error" "danger" "❌ Backup failed: $display_name"
+    notify_slack "❌ Incremental backup of *$display_name* (\`$server_id\`) failed!\n⚠️ *Status:* Failed\n⏰ *Time:* $(date '+%H:%M:%S')" "error" "danger" "❌ Backup failed: $display_name"
   fi
   
   echo ""
@@ -269,22 +269,22 @@ backup_server() {
       if rclone copy "$backup_path" "$RCLONE_REMOTE" > /dev/null 2>&1; then
         echo " ✅ Upload successful"
         log "✅ Upload successful"
-        notify_slack "✅ Full backup of **$display_name** (\`$server_id\`) uploaded successfully\n📦 **Size:** $size\n☁️ **Location:** $RCLONE_REMOTE\n⏰ **Time:** $(date '+%H:%M:%S')" "success" "good" "✅ Backup uploaded: $display_name"
+        notify_slack "✅ Full backup of *$display_name* (\`$server_id\`) uploaded successfully\n📦 *Size:* $size\n☁️ *Location:* $RCLONE_REMOTE\n⏰ *Time:* $(date '+%H:%M:%S')" "success" "good" "✅ Backup uploaded: $display_name"
       else
         echo " ❌ Upload failed"
         log "❌ Upload failed"
-        notify_slack "❌ Full backup of **$display_name** (\`$server_id\`) upload failed!\n📦 **Size:** $size\n☁️ **Target:** $RCLONE_REMOTE\n⚠️ **Status:** Upload Failed\n⏰ **Time:** $(date '+%H:%M:%S')" "error" "danger" "❌ Upload failed: $display_name"
+        notify_slack "❌ Full backup of *$display_name* (\`$server_id\`) upload failed!\n📦 *Size:* $size\n☁️ *Target:* $RCLONE_REMOTE\n⚠️ *Status:* Upload Failed\n⏰ *Time:* $(date '+%H:%M:%S')" "error" "danger" "❌ Upload failed: $display_name"
       fi
     else
       echo " ❌ Failed to create backup"
       log "❌ Failed to create backup for $server_id"
-      notify_slack "❌ Full backup creation failed for **$display_name** (\`$server_id\`)!\n⚠️ **Status:** Creation Failed\n⏰ **Time:** $(date '+%H:%M:%S')" "error" "danger" "❌ Backup creation failed: $display_name"
+      notify_slack "❌ Full backup creation failed for *$display_name* (\`$server_id\`)!\n⚠️ *Status:* Creation Failed\n⏰ *Time:* $(date '+%H:%M:%S')" "error" "danger" "❌ Backup creation failed: $display_name"
       [ -f "$backup_path" ] && rm -f "$backup_path"
     fi
   else
     echo " ⚠️  No backup items found"
     log "⚠️  No backup items found for $server_id"
-    notify_slack "⚠️ No backup items found for **$display_name** (\`$server_id\`)\n📂 **Path:** $server_dir\n⏰ **Time:** $(date '+%H:%M:%S')" "warning" "warning" "⚠️ No backup items: $display_name"
+    notify_slack "⚠️ No backup items found for *$display_name* (\`$server_id\`)\n📂 *Path:* $server_dir\n⏰ *Time:* $(date '+%H:%M:%S')" "warning" "warning" "⚠️ No backup items: $display_name"
   fi
   
   echo ""
@@ -337,18 +337,18 @@ interactive_mode() {
   if [ "$choice" = "$((${#servers[@]}+1))" ]; then
     echo "📦 Backing up all servers..."
     log "📦 Full backup of all servers started"
-    notify_slack "🚀 Starting full backup of **all servers**...\n📊 **Server Count:** ${#servers[@]}\n⏰ **Started:** $(date '+%H:%M:%S')" "info" "warning" "🚀 Starting full backup of all servers"
+    notify_slack "🚀 Starting full backup of *all servers*...\n📊 *Server Count:* ${#servers[@]}\n⏰ *Started:* $(date '+%H:%M:%S')" "info" "warning" "🚀 Starting full backup of all servers"
     
     for server_id in "${servers[@]}"; do
       backup_server "$server_id"
     done
     
-    notify_slack "✅ Full backup of **all servers** completed successfully!\n📊 **Servers:** ${#servers[@]}\n⏰ **Completed:** $(date '+%H:%M:%S')" "success" "good" "✅ All servers backed up successfully"
+    notify_slack "✅ Full backup of *all servers* completed successfully!\n📊 *Servers:* ${#servers[@]}\n⏰ *Completed:* $(date '+%H:%M:%S')" "success" "good" "✅ All servers backed up successfully"
   elif [ "$choice" -ge 1 ] && [ "$choice" -le "${#servers[@]}" ]; then
     local selected_server_id=${servers[$((choice-1))]}
     echo "📦 Backing up ${server_names[$((choice-1))]} ($selected_server_id)..."
     log "📦 Full backup of selected server: $selected_server_id"
-    notify_slack "🚀 Starting full backup of **${server_names[$((choice-1))]}** (\`$selected_server_id\`)...\n⏰ **Started:** $(date '+%H:%M:%S')" "info" "warning" "🚀 Starting backup: ${server_names[$((choice-1))]}"
+    notify_slack "🚀 Starting full backup of *${server_names[$((choice-1))]}* (\`$selected_server_id\`)...\n⏰ *Started:* $(date '+%H:%M:%S')" "info" "warning" "🚀 Starting backup: ${server_names[$((choice-1))]}"
     
     backup_server "$selected_server_id"
   else
@@ -379,7 +379,7 @@ echo ""
 log "🤖 Automatic incremental backup mode started"
 
 # Send start notification
-notify_slack "🤖 Starting automatic incremental backup cycle...\n⏰ **Started:** $(date '+%H:%M:%S')" "info" "warning" "🤖 Starting automatic backup cycle"
+notify_slack "🤖 Starting automatic incremental backup cycle...\n⏰ *Started:* $(date '+%H:%M:%S')" "info" "warning" "🤖 Starting automatic backup cycle"
 
 # Track backup results
 successful_backups=0
@@ -418,7 +418,7 @@ log "✅ Incremental backup cycle complete!"
 
 # Send completion summary
 if [ $failed_backups -eq 0 ]; then
-  notify_slack "✅ Incremental backup cycle **completed successfully**!\n📊 **Successful:** $successful_backups server(s)\n⏰ **Completed:** $(date '+%H:%M:%S')" "success" "good" "✅ Backup cycle completed successfully"
+  notify_slack "✅ Incremental backup cycle *completed successfully*!\n📊 *Successful:* $successful_backups server(s)\n⏰ *Completed:* $(date '+%H:%M:%S')" "success" "good" "✅ Backup cycle completed successfully"
 else
-  notify_slack "⚠️ Incremental backup cycle completed **with issues**:\n📊 **Successful:** $successful_backups\n❌ **Failed:** $failed_backups\n⏰ **Completed:** $(date '+%H:%M:%S')" "warning" "warning" "⚠️ Backup cycle completed with issues"
+  notify_slack "⚠️ Incremental backup cycle completed *with issues*:\n📊 *Successful:* $successful_backups\n❌ *Failed:* $failed_backups\n⏰ *Completed:* $(date '+%H:%M:%S')" "warning" "warning" "⚠️ Backup cycle completed with issues"
 fi
