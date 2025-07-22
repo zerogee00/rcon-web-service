@@ -5,7 +5,7 @@
 # Sends Slack notifications for alerts
 
 # === CONFIGURATION ===
-SLACK_WEBHOOK_URL="${SLACK_WEBHOOK_URL:-}"
+SLACK_WEBHOOK_URL="${SYSTEM_SLACK_WEBHOOK_URL:-$SLACK_WEBHOOK_URL}"
 SLACK_ENABLED="true"
 LOG_FILE="/var/log/system-health.log"
 

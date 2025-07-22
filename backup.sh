@@ -16,7 +16,7 @@ IONICE_CLASS="3"        # Idle I/O priority class
 
 # === SLACK CONFIGURATION ===
 # Can be set via environment variable or command line argument
-SLACK_WEBHOOK_URL="${SLACK_WEBHOOK_URL:-}"
+SLACK_WEBHOOK_URL="${BACKUP_SLACK_WEBHOOK_URL:-$SLACK_WEBHOOK_URL}"
 SLACK_ENABLED="true"
 
 # Check for webhook URL from command line arguments

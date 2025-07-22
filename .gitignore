@@ -83,3 +83,4 @@ logs/
 # Local configuration
 config.local.*
 .env.local
+.env
