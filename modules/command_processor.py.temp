@@ -79,14 +79,6 @@ def process_command_alias(command, user_name="unknown"):
     base_command = parts[0].lower()
     args = parts[1:] if len(parts) > 1 else []
     
-    # Check for coordinate-based commands first
-    if base_command == "coordcmd":
-        result, error = process_coordinate_alias(command, user_name)
-        if error:
-            return command, error
-        # For coordinate commands, we return the result directly
-        return result, "COORDINATE_RESULT"
-    
     # Check regular aliases first
     if CONFIG.get('enable_aliases', True) and base_command in ALIASES:
         template = ALIASES[base_command]
@@ -268,7 +260,7 @@ def parse_coordinates(coordinates_output):
         pos_match = re.search(r'Pos:\s*\[([^]]+)\]', coordinates_output)
         if pos_match:
             coords_str = pos_match.group(1)
-            coords = [float(x.strip().rstrip('d')) for x in coords_str.split(',')]
+            coords = [float(x.strip()) for x in coords_str.split(',')]
             if len(coords) >= 3:
                 # Convert to integers (whole block coordinates)
                 x = int(coords[0])

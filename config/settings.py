@@ -123,7 +123,9 @@ ESSENTIALS_SHORTCUTS = {
     'msg': 'msg {player} {message}',
     'r': 'r {message}',
     'broadcast': 'broadcast {message}',
-    'bc': 'broadcast {message}'
+    'bc': 'broadcast {message}',
+    'coordcmd': 'coordcmd {player} {server} {command}',
+    'hangsign': 'coordcmd {player} {server} setblock {x} {y} {z} minecraft:oak_hanging_sign'
 }
 
 # Command descriptions for help system
@@ -143,5 +145,7 @@ COMMAND_DESCRIPTIONS = {
     'save-all': 'Saves the world',
     'reload': 'Reloads server configuration',
     'restart': 'Restarts the server',
-    'stop': 'Stops the server'
+    'stop': 'Stops the server',
+    'coordcmd': 'Execute commands using player coordinates. Usage: coordcmd <player> <server> <command_template>',
+    'hangsign': 'Places a hanging sign at player location. Usage: hangsign <player> <server>'
 }

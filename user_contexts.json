@@ -1,5 +1,20 @@
 {
   "doktorodd": {
-    "default_server": "b46f4016"
+    "default_server": "2d3f3e83"
+  },
+  "testuser": {
+    "context": {
+      "type": "server_selection",
+      "data": {
+        "command": "list",
+        "servers": [
+          "7eaa7ab6",
+          "b46f4016",
+          "e6a4f515"
+        ]
+      },
+      "created_at": "2025-07-22T18:20:09.879403",
+      "expires_at": "2025-07-22T18:25:09.879381"
+    }
   }
 }

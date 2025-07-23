@@ -25,21 +25,6 @@ def handle_help_command():
 • `/mc servers` - List all available servers
 • `/mc help` - Show this help
 
-*Server Management:*
-• `/status` - Show all server status and resource usage
-• `/start [server_id]` - Start a server
-• `/stop [server_id]` - Stop a server
-• `/restart [server_id]` - Restart a server
-• `/logs [server_id] [lines]` - View recent server logs
-• `/backup` - Manage server backups
-
-
-
-*Control Commands:*
-• Commands without server_id use your default server
-• Commands with server_id will update your default server
-• If no default is set, I'll help you choose one
-
 *Server Selection:*
 When you don't have a default server, I'll guide you through selecting one and remember it for future commands.
 
@@ -56,9 +41,6 @@ When you don't have a default server, I'll guide you through selecting one and r
 • List players: `/mc list`
 • Broadcast message: `/mc say Server restart in 5 minutes!`
 • Change time: `/mc time set day`
-• Check server status: `/status`
-• Start a server: `/start 7eaa7ab6`
-• View logs: `/logs 7eaa7ab6 20`
 
 *Context-Aware Features:*
 • 🧠 I remember your preferred server across commands
@@ -266,64 +248,29 @@ def handle_server_selection_response(user_name, text, context):
             # Clear the selection context
             clear_user_context(user_name)
             
-            # Check if this is a PufferPanel command (has 'action' in context)
-            if 'action' in context['data']:
-                # Handle PufferPanel server control commands
-                from pufferpanel_commands import handle_server_control_command, handle_logs_command
-                from utils.pufferpanel_integration import get_server_info as get_pp_server_info
-                
-                action = context['data']['action']
-                
-                if action in ['start', 'stop', 'restart', 'kill']:
-                    # Execute server control command
-                    result = handle_server_control_command(user_name, f"{action} {selected_server_id}")
-                elif action == 'view logs for':
-                    # Execute logs command
-                    result = handle_logs_command(user_name, f"logs {selected_server_id}")
-                else:
-                    return jsonify({
-                        'response_type': 'ephemeral',
-                        'text': f'❌ Unknown action: {action}'
-                    })
-                
-                # Get server info and add confirmation message
-                try:
-                    pp_server_info = get_pp_server_info(selected_server_id)
-                    if pp_server_info and result.get_json():
-                        result_data = result.get_json()
-                        if 'text' in result_data:
-                            # Prepend server selection confirmation
-                            confirmation = f"✅ *Server set to {pp_server_info['name']}* (I'll remember this!)\n\n"
-                            result_data['text'] = confirmation + result_data['text']
-                            return jsonify(result_data)
-                except:
-                    pass  # If we can't get server info, just return the original result
-                
-                return result
-            else:
-                # Handle RCON commands
-                processed_command, error = process_command_alias(original_command, user_name)
-                if error:
-                    return jsonify({
-                        'response_type': 'ephemeral',
-                        'text': f'❌ {error}'
-                    })
-                
-                result = execute_rcon_command(selected_server_id, processed_command, f"Slack User: {user_name}")
-                server_info = get_server_info(selected_server_id)
-                
-                # Format response with confirmation
-                response_text = f"✅ *Server set to {server_info['name']}* (I'll remember this!)\n\n"
-                
-                if processed_command.lower() in ['list', 'who']:
-                    response_text += f"*👥 Players on {server_info['name']}:*\n```\n{result}\n```"
-                else:
-                    response_text += f"*🎮 {server_info['name']}* - Command: `{processed_command}`\n```\n{result}\n```"
-                
+            # Execute the original command
+            processed_command, error = process_command_alias(original_command, user_name)
+            if error:
                 return jsonify({
-                    'response_type': 'in_channel',
-                    'text': response_text
+                    'response_type': 'ephemeral',
+                    'text': f'❌ {error}'
                 })
+            
+            result = execute_rcon_command(selected_server_id, processed_command, f"Slack User: {user_name}")
+            server_info = get_server_info(selected_server_id)
+            
+            # Format response with confirmation
+            response_text = f"✅ *Server set to {server_info['name']}* (I'll remember this!)\n\n"
+            
+            if processed_command.lower() in ['list', 'who']:
+                response_text += f"*👥 Players on {server_info['name']}:*\n```\n{result}\n```"
+            else:
+                response_text += f"*🎮 {server_info['name']}* - Command: `{processed_command}`\n```\n{result}\n```"
+            
+            return jsonify({
+                'response_type': 'in_channel',
+                'text': response_text
+            })
         else:
             return jsonify({
                 'response_type': 'ephemeral',
@@ -331,18 +278,19 @@ def handle_server_selection_response(user_name, text, context):
             })
             
     except ValueError:
+        if text.lower() in ['cancel', 'abort', 'exit']:
+            clear_user_context(user_name)
+            return jsonify({
+                'response_type': 'ephemeral',
+                'text': '❌ Server selection cancelled.'
+            })
+        
         return jsonify({
             'response_type': 'ephemeral',
-            'text': '❌ Please enter a valid number.'
-        })
-    except Exception as e:
-        logger.error(f"Error in server selection response: {e}")
-        return jsonify({
-            'response_type': 'ephemeral',
-            'text': f'❌ Error processing selection: {str(e)}'
+            'text': '❌ Please enter a number, or "cancel" to abort.'
         })
 
-
+@slack_bp.route('/slack/players', methods=['POST'])
 def handle_players_command():
     """Handle players list command"""
     try:

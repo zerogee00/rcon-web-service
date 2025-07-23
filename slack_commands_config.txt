@@ -1,0 +1,59 @@
+# Slack Slash Commands Configuration
+# Generated on: 2025-07-22T18:03:09.855274
+# Base URL: https://slackbot.doktorodd.com
+
+# Command configurations for Slack App setup:
+
+## /mc
+Command: /mc
+Request URL: https://slackbot.doktorodd.com/slack/mc
+Short Description: Execute Minecraft RCON commands on your servers
+Usage Hint: [server_id] <command> | servers | help | config
+
+## /players
+Command: /players
+Request URL: https://slackbot.doktorodd.com/slack/players
+Short Description: Show online players on your default server
+Usage Hint: 
+
+## /servers
+Command: /servers
+Request URL: https://slackbot.doktorodd.com/slack/servers
+Short Description: List all available Minecraft servers
+Usage Hint: 
+
+## /backup
+Command: /backup
+Request URL: https://slackbot.doktorodd.com/slack/backup
+Short Description: Manage Minecraft server backups
+Usage Hint: list | create [server_id] | restore [backup_id] | cleanup
+
+## /status
+Command: /status
+Request URL: https://slackbot.doktorodd.com/slack/status
+Short Description: Show status of all Minecraft servers and system resources
+Usage Hint: 
+
+## /start
+Command: /start
+Request URL: https://slackbot.doktorodd.com/slack/start
+Short Description: Start a Minecraft server
+Usage Hint: <server_id>
+
+## /stop
+Command: /stop
+Request URL: https://slackbot.doktorodd.com/slack/stop
+Short Description: Stop a Minecraft server
+Usage Hint: <server_id>
+
+## /restart
+Command: /restart
+Request URL: https://slackbot.doktorodd.com/slack/restart
+Short Description: Restart a Minecraft server
+Usage Hint: <server_id>
+
+## /logs
+Command: /logs
+Request URL: https://slackbot.doktorodd.com/slack/logs
+Short Description: View recent server logs
+Usage Hint: <server_id> [lines]
